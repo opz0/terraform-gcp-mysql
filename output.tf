@@ -13,7 +13,7 @@ output "private_address" {
   description = "The private IP address assigned for the master instance"
 }
 output "public_ip_address" {
-  value = join("", google_sql_database_instance.default.*.public_ip_address)
+  value = join("", google_sql_database_instance.default[*].public_ip_address)
 }
 
 output "instance_first_ip_address" {

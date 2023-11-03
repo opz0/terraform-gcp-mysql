@@ -1,16 +1,14 @@
-output "connection_name" {
-  value = module.sql-server.connection_name
+output "instance_name" {
+  description = "The name for Cloud SQL instance"
+  value       = module.mssql.instance_name
 }
 
-output "id" {
-  value = module.sql-server.id
+output "mssql_connection" {
+  value       = module.mssql.instance_connection_name
+  description = "The connection name of the master instance to be used in connection strings"
 }
 
-output "self_link" {
-  value = module.sql-server.self_link
-}
-
-output "root_password" {
-  value     = module.sql-server.root_password
-  sensitive = true
+output "public_ip_address" {
+  value       = module.mssql.instance_first_ip_address
+  description = "Public ip address"
 }

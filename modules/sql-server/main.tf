@@ -1,47 +1,60 @@
-provider "google" {
-  project = "opz0-397319"
-  region  = "asia-northeast1"
-  zone    = "asia-northeast1-a"
-}
-locals {
-  retained_backups = lookup(var.backup_configuration, "retained_backups", null)
-  retention_unit   = lookup(var.backup_configuration, "retention_unit", null)
+module "labels" {
+  source      = "git::https://github.com/opz0/terraform-azure-labels.git?ref=v1.0.0"
+  name        = var.name
+  environment = var.environment
+  label_order = var.label_order
+  managedby   = var.managedby
+  repository  = var.repository
 }
 
-resource "random_id" "db_name_suffix" {
+data "google_client_config" "current" {
+}
+
+locals {
+  ip_configuration_enabled = length(keys(var.ip_configuration)) > 0 ? true : false
+
+  ip_configurations = {
+    enabled  = var.ip_configuration
+    disabled = {}
+  }
+
+  databases = { for db in var.additional_databases : db.name => db }
+  users     = { for u in var.additional_users : u.name => u }
+
+  retained_backups      = lookup(var.backup_configuration, "retained_backups", null)
+  retention_unit        = lookup(var.backup_configuration, "retention_unit", null)
+  connector_enforcement = var.connector_enforcement ? "REQUIRED" : "NOT_REQUIRED"
+}
+
+resource "random_id" "suffix" {
+  count       = var.random_instance_name ? 1 : 0
   byte_length = 4
 }
 
-resource "google_sql_user" "users" {
-  name     = var.name
-  instance = google_sql_database_instance.example_instance[0].name
-   password = var.root_password
+resource "random_password" "root-password" {
+  length  = 8
+  special = true
 }
 
-#####==============================================================================
-##### Create a GCP SQL Server instance
-#####==============================================================================
-resource "google_sql_database_instance" "example_instance" {
-  count               = var.google_sql_database_instance_enabled ? 1 : 0
-  name                = var.name
+resource "google_sql_database_instance" "default" {
+  project             = data.google_client_config.current.project
+  name                = var.random_instance_name ? "${format("%s-sql", module.labels.id)}-${random_id.suffix[0].hex}" : format("%s-sql", module.labels.id)
   database_version    = var.database_version
-  root_password       = var.root_password
-  project             = var.project_id
-  deletion_protection = false
-
-  region = var.region
+  region              = var.region
+  encryption_key_name = var.encryption_key_name
+  root_password       = coalesce(var.root_password, random_password.root-password.result)
+  deletion_protection = var.deletion_protection
 
   settings {
-    tier              = var.tier
-    activation_policy = var.activation_policy
-    disk_size         = var.disk_size
-    disk_type         = var.disk_type
+    tier                        = var.tier
+    edition                     = var.edition
+    activation_policy           = var.activation_policy
+    availability_type           = var.availability_type
+    deletion_protection_enabled = var.deletion_protection_enabled
+    connector_enforcement       = local.connector_enforcement
+
     dynamic "backup_configuration" {
-      for_each = {
-        "example" = var.backup_configuration != null ? var.backup_configuration : {
-          default_key = "default_value"
-        }
-      }
+      for_each = var.backup_configuration.enabled ? [var.backup_configuration] : []
       content {
         binary_log_enabled             = lookup(backup_configuration.value, "binary_log_enabled", null)
         enabled                        = lookup(backup_configuration.value, "enabled", null)
@@ -54,30 +67,157 @@ resource "google_sql_database_instance" "example_instance" {
           content {
             retained_backups = local.retained_backups
             retention_unit   = local.retention_unit
-
-        }
+          }
         }
       }
     }
-    maintenance_window {
-      day          = var.day
-      hour         = var.hour
-      update_track = var.update_track
+    dynamic "deny_maintenance_period" {
+      for_each = var.deny_maintenance_period
+      content {
+        end_date   = lookup(deny_maintenance_period.value, "end_date", null)
+        start_date = lookup(deny_maintenance_period.value, "start_date", null)
+        time       = lookup(deny_maintenance_period.value, "time", null)
+      }
     }
-    deletion_protection_enabled = false
-    availability_type           = var.availability_type
-    ip_configuration {
-      ipv4_enabled    = true
-      private_network = null
-      require_ssl     = null
+    dynamic "ip_configuration" {
+      for_each = [local.ip_configurations[local.ip_configuration_enabled ? "enabled" : "disabled"]]
+      content {
+        ipv4_enabled       = lookup(ip_configuration.value, "ipv4_enabled", null)
+        private_network    = lookup(ip_configuration.value, "private_network", null)
+        require_ssl        = lookup(ip_configuration.value, "require_ssl", null)
+        allocated_ip_range = lookup(ip_configuration.value, "allocated_ip_range", null)
+
+        dynamic "authorized_networks" {
+          for_each = lookup(ip_configuration.value, "authorized_networks", [])
+          content {
+            expiration_time = lookup(authorized_networks.value, "expiration_time", null)
+            name            = lookup(authorized_networks.value, "name", null)
+            value           = lookup(authorized_networks.value, "value", null)
+          }
+        }
+      }
+    }
+
+    disk_autoresize       = var.disk_autoresize
+    disk_autoresize_limit = var.disk_autoresize_limit
+    disk_size             = var.disk_size
+    disk_type             = var.disk_type
+    pricing_plan          = var.pricing_plan
+    time_zone             = var.time_zone
+    dynamic "database_flags" {
+      for_each = var.database_flags
+      content {
+        name  = lookup(database_flags.value, "name", null)
+        value = lookup(database_flags.value, "value", null)
+      }
+    }
+    dynamic "active_directory_config" {
+      for_each = var.active_directory_config
+      content {
+        domain = lookup(var.active_directory_config, "domain", null)
+      }
+    }
+
+    dynamic "sql_server_audit_config" {
+      for_each = length(var.sql_server_audit_config) != 0 ? [var.sql_server_audit_config] : []
+      content {
+        bucket             = lookup(var.sql_server_audit_config, "bucket", null)
+        upload_interval    = lookup(var.sql_server_audit_config, "upload_interval", null)
+        retention_interval = lookup(var.sql_server_audit_config, "retention_interval", null)
+      }
+    }
+    user_labels = var.user_labels
+    location_preference {
+      zone                   = var.zone
+      secondary_zone         = var.secondary_zone
+      follow_gae_application = var.follow_gae_application
+    }
+    maintenance_window {
+      day          = var.maintenance_window_day
+      hour         = var.maintenance_window_hour
+      update_track = var.maintenance_window_update_track
     }
   }
+  lifecycle {
+    ignore_changes = [
+      settings[0].disk_size,
+      root_password
+    ]
+  }
+  timeouts {
+    create = var.create_timeout
+    update = var.update_timeout
+    delete = var.delete_timeout
+  }
+  depends_on = [null_resource.module_depends_on]
 }
-#####==============================================================================
-##### Create a GCP SQL Server database
-#####==============================================================================
-resource "google_sql_database" "example_database" {
-  count    = var.google_sql_database_enabled ? 1 : 0
-  name     = var.name
-  instance = google_sql_database_instance.example_instance[0].name
+
+resource "google_sql_database" "default" {
+  name       = format("%s-sql", module.labels.id)
+  project    = data.google_client_config.current.project
+  instance   = google_sql_database_instance.default.name
+  charset    = var.db_charset
+  collation  = var.db_collation
+  depends_on = [null_resource.module_depends_on, google_sql_database_instance.default, google_sql_user.default, google_sql_user.additional_users]
+}
+
+resource "google_sql_database" "additional_databases" {
+  for_each   = local.databases
+  project    = data.google_client_config.current.project
+  name       = format("%s-sql", module.labels.id)
+  charset    = lookup(each.value, "charset", null)
+  collation  = lookup(each.value, "collation", null)
+  instance   = google_sql_database_instance.default.name
+  depends_on = [null_resource.module_depends_on, google_sql_database_instance.default, google_sql_user.default, google_sql_user.additional_users]
+}
+
+resource "random_password" "user-password" {
+  length  = 8
+  special = true
+
+  lifecycle {
+    ignore_changes = [
+      special, length
+    ]
+  }
+  depends_on = [null_resource.module_depends_on, google_sql_database_instance.default]
+}
+
+resource "random_password" "additional_passwords" {
+  for_each = local.users
+  keepers = {
+    name = google_sql_database_instance.default.name
+  }
+  length  = 32
+  special = true
+
+  lifecycle {
+    ignore_changes = [
+      special, length
+    ]
+  }
+  depends_on = [null_resource.module_depends_on, google_sql_database_instance.default]
+}
+
+resource "google_sql_user" "default" {
+  name       = format("%s-user", module.labels.id)
+  project    = data.google_client_config.current.project
+  instance   = google_sql_database_instance.default.name
+  password   = coalesce(var.user_password, random_password.user-password.result)
+  depends_on = [null_resource.module_depends_on, google_sql_database_instance.default]
+}
+
+resource "google_sql_user" "additional_users" {
+  for_each   = local.users
+  project    = data.google_client_config.current.project
+  name       = format("%s-user", module.labels.id)
+  password   = each.value.random_password ? random_password.additional_passwords[each.value.name].result : each.value.password
+  instance   = google_sql_database_instance.default.name
+  depends_on = [null_resource.module_depends_on, google_sql_database_instance.default]
+}
+
+resource "null_resource" "module_depends_on" {
+  triggers = {
+    value = length(var.module_depends_on)
+  }
 }

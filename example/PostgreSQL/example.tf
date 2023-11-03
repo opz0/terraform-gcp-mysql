@@ -4,17 +4,19 @@ provider "google" {
   zone    = "asia-northeast1-a"
 }
 
+#####==============================================================================
+##### postgresql-db module call.
+#####==============================================================================
 module "postgresql-db" {
   source               = "../../modules/postgresql"
-  name                 = var.db_name
-  random_instance_name = true
+  name                 = "test"
+  environment          = "postgresql-db"
   database_version     = "POSTGRES_9_6"
-  project_id           = var.project_id
   zone                 = "us-central1-c"
   region               = "us-central1"
   tier                 = "db-custom-1-3840"
-
-  deletion_protection = false
+  deletion_protection  = false
+  random_instance_name = true
   ip_configuration = {
     ipv4_enabled        = true
     private_network     = null

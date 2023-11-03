@@ -1,3 +1,15 @@
+module "labels" {
+  source      = "git::https://github.com/opz0/terraform-azure-labels.git?ref=v1.0.0"
+  name        = var.name
+  environment = var.environment
+  label_order = var.label_order
+  managedby   = var.managedby
+  repository  = var.repository
+}
+
+data "google_client_config" "current" {
+}
+
 locals {
   ip_configuration_enabled = length(keys(var.ip_configuration)) > 0 ? true : false
   ip_configurations = {
@@ -21,11 +33,10 @@ resource "random_password" "root-password" {
   length  = 8
   special = false
 }
-
+#tfsec:ignore:google-sql-no-public-access
 resource "google_sql_database_instance" "default" {
-  provider            = google-beta
-  project             = var.project_id
-  name                = var.random_instance_name ? "${var.name}-${random_id.suffix[0].hex}" : var.name
+  project             = data.google_client_config.current.project
+  name                = var.random_instance_name ? "${format("%s", module.labels.id)}-${random_id.suffix[0].hex}" : format("%s", module.labels.id)
   database_version    = var.database_version
   region              = var.region
   encryption_key_name = var.encryption_key_name
@@ -144,8 +155,8 @@ resource "google_sql_database_instance" "default" {
 }
 
 resource "google_sql_database" "default" {
-  name       = var.db_name
-  project    = var.project_id
+  name       = format("%s-db", module.labels.id)
+  project    = data.google_client_config.current.project
   instance   = google_sql_database_instance.default.name
   charset    = var.db_charset
   collation  = var.db_collation
@@ -154,7 +165,7 @@ resource "google_sql_database" "default" {
 
 resource "google_sql_database" "additional_databases" {
   for_each   = local.databases
-  project    = var.project_id
+  project    = data.google_client_config.current.project
   name       = each.value.name
   charset    = lookup(each.value, "charset", null)
   collation  = lookup(each.value, "collation", null)
@@ -191,8 +202,9 @@ resource "random_password" "additional_passwords" {
 }
 
 resource "google_sql_user" "default" {
-  name       = var.user_name
-  project    = var.project_id
+  name       = format("%s-user", module.labels.id)
+  host       = var.host
+  project    = data.google_client_config.current.project
   instance   = google_sql_database_instance.default.name
   password   = coalesce(var.user_password, random_password.user-password.result)
   depends_on = [null_resource.module_depends_on, google_sql_database_instance.default]
@@ -200,7 +212,7 @@ resource "google_sql_user" "default" {
 
 resource "google_sql_user" "additional_users" {
   for_each   = local.users
-  project    = var.project_id
+  project    = data.google_client_config.current.project
   name       = each.value.name
   password   = each.value.random_password ? random_password.additional_passwords[each.value.name].result : each.value.password
   instance   = google_sql_database_instance.default.name

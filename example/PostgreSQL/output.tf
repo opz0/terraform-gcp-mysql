@@ -1,8 +1,3 @@
-output "project_id" {
-  value       = var.project_id
-  description = "The project to run tests against"
-}
-
 output "name" {
   description = "The name for Cloud SQL instance"
   value       = module.postgresql-db.instance_name

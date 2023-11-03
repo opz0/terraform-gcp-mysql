@@ -1,11 +1,31 @@
-variable "project_id" {
-  type        = string
-  description = "The project ID to manage the Cloud SQL resources"
-}
-
 variable "name" {
   type        = string
-  description = "The name of the Cloud SQL resources"
+  default     = "test"
+  description = "Name of the resource. Provided by the client when the resource is created. "
+}
+
+variable "environment" {
+  type        = string
+  default     = ""
+  description = "Environment (e.g. `prod`, `dev`, `staging`)."
+}
+
+variable "label_order" {
+  type        = list(any)
+  default     = ["name", "environment"]
+  description = "Label order, e.g. sequence of application name and environment `name`,`environment`,'attribute' [`webserver`,`qa`,`devops`,`public`,] ."
+}
+
+variable "managedby" {
+  type        = string
+  default     = ""
+  description = "ManagedBy, eg 'Opz0'."
+}
+
+variable "repository" {
+  type        = string
+  default     = ""
+  description = "Terraform current module repo"
 }
 
 variable "random_instance_name" {
@@ -176,7 +196,6 @@ variable "ip_configuration" {
     allocated_ip_range  = null
   }
 }
-
 variable "backup_configuration" {
   description = "The database backup configuration."
   type = object({
@@ -184,25 +203,19 @@ variable "backup_configuration" {
     enabled                        = bool
     point_in_time_recovery_enabled = bool
     start_time                     = string
-    transaction_log_retention_days = string
+    transaction_log_retention_days = number
     retained_backups               = number
     retention_unit                 = string
   })
   default = {
     binary_log_enabled             = null
-    enabled                        = false
+    enabled                        = true
     point_in_time_recovery_enabled = null
     start_time                     = null
-    transaction_log_retention_days = null
-    retained_backups               = null
+    transaction_log_retention_days = 1
+    retained_backups               = 1
     retention_unit                 = null
   }
-}
-
-variable "db_name" {
-  description = "The name of the default database to create"
-  type        = string
-  default     = "default"
 }
 
 variable "db_charset" {
@@ -227,20 +240,11 @@ variable "additional_databases" {
   default = []
 }
 
-variable "user_name" {
-  description = "The name of the default user"
-  type        = string
-  default     = "root"
-}
 
 variable "user_password" {
   description = "The password for the default user. If not set, a random one will be generated and available in the generated_user_password output variable."
   type        = string
   default     = ""
-}
-variable "host" {
-  type    = string
-  default = "%"
 }
 
 variable "additional_users" {
@@ -310,11 +314,16 @@ variable "time_zone" {
   type        = string
   default     = null
 }
-variable "authorized_networks" {
-  default = [{
-    name  = "sample-gcp-health-checkers-range"
-    value = "130.211.0.0/28"
-  }]
-  type        = list(map(string))
-  description = "List of mapped public networks authorized to access to the instances. Default - short range of GCP health-checkers IPs"
+#variable "authorized_networks" {
+#  default = [{
+#    name  = "sample-gcp-health-checkers-range"
+#    value = "130.211.0.0/28"
+#  }]
+#  type        = list(map(string))
+#  description = "List of mapped public networks authorized to access to the instances. Default - short range of GCP health-checkers IPs"
+#}
+variable "host" {
+  type        = string
+  default     = "%"
+  description = "The host the user can connect from. This is only supported for BUILT_IN users in MySQL instances. "
 }

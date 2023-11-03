@@ -1,5 +1,17 @@
+module "labels" {
+  source      = "git::https://github.com/opz0/terraform-azure-labels.git?ref=v1.0.0"
+  name        = var.name
+  environment = var.environment
+  label_order = var.label_order
+  managedby   = var.managedby
+  repository  = var.repository
+}
+
+data "google_client_config" "current" {
+}
+
 locals {
-  master_instance_name     = var.random_instance_name ? "${var.name}-${random_id.suffix[0].hex}" : var.name
+  master_instance_name     = var.random_instance_name ? "${format("%s", module.labels.id)}-${random_id.suffix[0].hex}" : format("%s", module.labels.id)
   ip_configuration_enabled = length(keys(var.ip_configuration)) > 0 ? true : false
   ip_configurations = {
     enabled  = var.ip_configuration
@@ -28,7 +40,7 @@ resource "random_id" "suffix" {
 }
 
 resource "google_sql_database_instance" "default" {
-  project             = var.project_id
+  project             = data.google_client_config.current.project
   name                = local.master_instance_name
   database_version    = can(regex("\\d", substr(var.database_version, 0, 1))) ? format("POSTGRES_%s", var.database_version) : replace(var.database_version, substr(var.database_version, 0, 8), "POSTGRES")
   region              = var.region
@@ -170,7 +182,7 @@ resource "google_sql_database_instance" "default" {
 resource "google_sql_database" "default" {
   count           = var.enable_default_db ? 1 : 0
   name            = var.db_name
-  project         = var.project_id
+  project         = data.google_client_config.current.project
   instance        = google_sql_database_instance.default.name
   charset         = var.db_charset
   collation       = var.db_collation
@@ -180,7 +192,7 @@ resource "google_sql_database" "default" {
 
 resource "google_sql_database" "additional_databases" {
   for_each        = local.databases
-  project         = var.project_id
+  project         = data.google_client_config.current.project
   name            = each.value.name
   charset         = lookup(each.value, "charset", null)
   collation       = lookup(each.value, "collation", null)
@@ -231,8 +243,7 @@ resource "random_password" "additional_passwords" {
 resource "google_sql_user" "default" {
   count    = var.enable_default_user ? 1 : 0
   name     = var.user_name
-  project  = var.project_id
-  host     = var.host
+  project  = data.google_client_config.current.project
   instance = google_sql_database_instance.default.name
   password = var.user_password == "" ? random_password.user-password.result : var.user_password
   depends_on = [
@@ -245,7 +256,7 @@ resource "google_sql_user" "default" {
 
 resource "google_sql_user" "additional_users" {
   for_each = local.users
-  project  = var.project_id
+  project  = data.google_client_config.current.project
   name     = each.value.name
   password = each.value.random_password ? random_password.additional_passwords[each.value.name].result : each.value.password
   instance = google_sql_database_instance.default.name
@@ -259,7 +270,7 @@ resource "google_sql_user" "additional_users" {
 
 resource "google_sql_user" "iam_account" {
   for_each = local.iam_users
-  project  = var.project_id
+  project  = data.google_client_config.current.project
   name = each.value.is_account_sa ? (
     trimsuffix(each.value.email, ".gserviceaccount.com")
     ) : (

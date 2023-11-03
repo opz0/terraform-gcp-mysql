@@ -1,14 +1,7 @@
-
-variable "project_id" {
-  description = "The ID of the project in which resources will be provisioned."
-  type        = string
-  default     = "opz0-397319"
-}
-
-variable "db_name" {
-  description = "The name of the SQL Database instance"
-  default     = "example-mysql-public"
-}
+#variable "db_name" {
+#  description = "The name of the SQL Database instance"
+#  default     = "example-mysql-public"
+#}
 
 variable "authorized_networks" {
   default = [{

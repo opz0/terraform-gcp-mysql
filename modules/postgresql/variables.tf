@@ -1,11 +1,31 @@
-variable "project_id" {
-  type        = string
-  description = "The project ID to manage the Cloud SQL resources"
-}
-
 variable "name" {
   type        = string
-  description = "The name of the Cloud SQL resources"
+  default     = "test"
+  description = "Name of the resource. Provided by the client when the resource is created. "
+}
+
+variable "environment" {
+  type        = string
+  default     = ""
+  description = "Environment (e.g. `prod`, `dev`, `staging`)."
+}
+
+variable "label_order" {
+  type        = list(any)
+  default     = ["name", "environment"]
+  description = "Label order, e.g. sequence of application name and environment `name`,`environment`,'attribute' [`webserver`,`qa`,`devops`,`public`,] ."
+}
+
+variable "managedby" {
+  type        = string
+  default     = ""
+  description = "ManagedBy, eg 'Opz0'."
+}
+
+variable "repository" {
+  type        = string
+  default     = ""
+  description = "Terraform current module repo"
 }
 
 variable "random_instance_name" {
@@ -73,12 +93,6 @@ variable "availability_type" {
 
 variable "deletion_protection_enabled" {
   description = "Enables protection of an instance from accidental deletion across all surfaces (API, gcloud, Cloud Console and Terraform)."
-  type        = bool
-  default     = false
-}
-
-variable "read_replica_deletion_protection_enabled" {
-  description = "Enables protection of replica instance from accidental deletion across all surfaces (API, gcloud, Cloud Console and Terraform)."
   type        = bool
   default     = false
 }
@@ -157,19 +171,26 @@ variable "deny_maintenance_period" {
 }
 
 variable "backup_configuration" {
-  description = "The backup_configuration settings subblock for the database setings"
+  description = "The database backup configuration."
   type = object({
-    enabled                        = optional(bool, false)
-    start_time                     = optional(string)
-    location                       = optional(string)
-    point_in_time_recovery_enabled = optional(bool, false)
-    transaction_log_retention_days = optional(string)
-    retained_backups               = optional(number)
-    retention_unit                 = optional(string)
+    binary_log_enabled             = bool
+    enabled                        = bool
+    point_in_time_recovery_enabled = bool
+    start_time                     = string
+    transaction_log_retention_days = number
+    retained_backups               = number
+    retention_unit                 = string
   })
-  default = {}
+  default = {
+    binary_log_enabled             = null
+    enabled                        = true
+    point_in_time_recovery_enabled = null
+    start_time                     = null
+    transaction_log_retention_days = 1
+    retained_backups               = 1
+    retention_unit                 = null
+  }
 }
-
 variable "insights_config" {
   description = "The insights_config settings for the database."
   type = object({
@@ -207,51 +228,51 @@ variable "ip_configuration" {
   })
   default = {}
 }
+#
+#variable "read_replicas" {
+#  description = "List of read replicas to create. Encryption key is required for replica in different region. For replica in same region as master set encryption_key_name = null"
+#  type = list(object({
+#    name                  = string
+#    name_override         = optional(string)
+#    tier                  = optional(string)
+#    edition               = optional(string)
+#    availability_type     = optional(string)
+#    zone                  = optional(string)
+#    disk_type             = optional(string)
+#    disk_autoresize       = optional(bool)
+#    disk_autoresize_limit = optional(number)
+#    disk_size             = optional(string)
+#    user_labels           = map(string)
+#    database_flags = optional(list(object({
+#      name  = string
+#      value = string
+#    })), [])
+#    insights_config = optional(object({
+#      query_plans_per_minute  = optional(number, 5)
+#      query_string_length     = optional(number, 1024)
+#      record_application_tags = optional(bool, false)
+#      record_client_address   = optional(bool, false)
+#    }), null)
+#    ip_configuration = object({
+#      authorized_networks                           = optional(list(map(string)), [])
+#      ipv4_enabled                                  = optional(bool)
+#      private_network                               = optional(string, )
+#      require_ssl                                   = optional(bool)
+#      allocated_ip_range                            = optional(string)
+#      enable_private_path_for_google_cloud_services = optional(bool, false)
+#      psc_enabled                                   = optional(bool, false)
+#      psc_allowed_consumer_projects                 = optional(list(string), [])
+#    })
+#    encryption_key_name = optional(string)
+#  }))
+#  default = []
+#}
 
-variable "read_replicas" {
-  description = "List of read replicas to create. Encryption key is required for replica in different region. For replica in same region as master set encryption_key_name = null"
-  type = list(object({
-    name                  = string
-    name_override         = optional(string)
-    tier                  = optional(string)
-    edition               = optional(string)
-    availability_type     = optional(string)
-    zone                  = optional(string)
-    disk_type             = optional(string)
-    disk_autoresize       = optional(bool)
-    disk_autoresize_limit = optional(number)
-    disk_size             = optional(string)
-    user_labels           = map(string)
-    database_flags = optional(list(object({
-      name  = string
-      value = string
-    })), [])
-    insights_config = optional(object({
-      query_plans_per_minute  = optional(number, 5)
-      query_string_length     = optional(number, 1024)
-      record_application_tags = optional(bool, false)
-      record_client_address   = optional(bool, false)
-    }), null)
-    ip_configuration = object({
-      authorized_networks                           = optional(list(map(string)), [])
-      ipv4_enabled                                  = optional(bool)
-      private_network                               = optional(string, )
-      require_ssl                                   = optional(bool)
-      allocated_ip_range                            = optional(string)
-      enable_private_path_for_google_cloud_services = optional(bool, false)
-      psc_enabled                                   = optional(bool, false)
-      psc_allowed_consumer_projects                 = optional(list(string), [])
-    })
-    encryption_key_name = optional(string)
-  }))
-  default = []
-}
-
-variable "read_replica_name_suffix" {
-  description = "The optional suffix to add to the read instance name"
-  type        = string
-  default     = ""
-}
+#variable "read_replica_name_suffix" {
+#  description = "The optional suffix to add to the read instance name"
+#  type        = string
+#  default     = ""
+#}
 
 variable "db_name" {
   description = "The name of the default database to create"
@@ -350,12 +371,6 @@ variable "deletion_protection" {
   description = "Used to block Terraform from deleting a SQL Instance."
   type        = bool
   default     = true
-}
-
-variable "read_replica_deletion_protection" {
-  description = "Used to block Terraform from deleting replica SQL Instances."
-  type        = bool
-  default     = false
 }
 
 variable "enable_default_db" {
