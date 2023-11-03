@@ -11,8 +11,8 @@ module "mssql" {
   source                  = "../../modules/sql-server"
   name                    = "sql"
   environment             = "server-db"
-  random_instance_name    = true
   user_password           = "foobar"
   deletion_protection     = false
+  random_instance_name    = true
   sql_server_audit_config = var.sql_server_audit_config
 }

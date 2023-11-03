@@ -1,8 +1,3 @@
-#variable "db_name" {
-#  description = "The name of the SQL Database instance"
-#  default     = "example-mysql-public"
-#}
-
 variable "authorized_networks" {
   default = [{
     name  = "sample-gcp-health-checkers-range"
