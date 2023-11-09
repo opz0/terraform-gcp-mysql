@@ -5,18 +5,20 @@ provider "google" {
 }
 
 #####==============================================================================
-##### postgresql-db module call.
+##### mysql-db module call.
 #####==============================================================================
-module "postgresql-db" {
-  source               = "../../modules/postgresql"
+module "mysql-db" {
+  source               = "../"
   name                 = "test"
-  environment          = "postgresql-db"
-  database_version     = "POSTGRES_9_6"
-  zone                 = "us-central1-c"
-  region               = "us-central1"
-  tier                 = "db-custom-1-3840"
-  deletion_protection  = false
+  environment          = "mysql"
   random_instance_name = true
+  database_version     = "MySQL_8_0"
+  zone                 = "asia-northeast1-a"
+  region               = "asia-northeast1"
+  tier                 = "db-n1-standard-1"
+  host                 = "%"
+  deletion_protection  = false
+
   ip_configuration = {
     ipv4_enabled        = true
     private_network     = null
@@ -24,4 +26,10 @@ module "postgresql-db" {
     allocated_ip_range  = null
     authorized_networks = var.authorized_networks
   }
+  database_flags = [
+    {
+      name  = "log_bin_trust_function_creators"
+      value = "on"
+    },
+  ]
 }
