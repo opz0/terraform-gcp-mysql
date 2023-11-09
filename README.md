@@ -59,7 +59,7 @@ This example demonstrates how to create various GCP resources using the provided
 Each module may have specific outputs. You can retrieve these outputs by referencing the module in your Terraform configuration.
 
 - 'name' : The name for Cloud mysql instance.
-- 'mysql_conn' :The connection name of the master instance to be used in connection strings.
+- 'connection_name' :The connection name of the master instance to be used in connection strings.
 - 'mysql_user_pass': The password for the default user. If not set, a random one will be generated and available in the generated_user_password output variable.
 - 'public_ip_address' : The first public (PRIMARY) IPv4 address assigned for the master instance.
 - 'private_ip_address': The first private (PRIVATE) IPv4 address assigned for the master instance.
