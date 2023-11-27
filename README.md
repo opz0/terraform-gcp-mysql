@@ -15,7 +15,7 @@ To use this module, you should have Terraform installed and configured for GCP. 
 # Example: mysql
 ```hcl
 module "mysql-db" {
-  source               = "git::https://github.com/opz0/terraform-gcp-mysql.git?ref=v1.0.0"
+  source               = "git::https://github.com/cypik/terraform-gcp-mysql.git?ref=v1.0.0"
   name                 = "test"
   environment          = "mysql-db"
   random_instance_name = true
@@ -65,10 +65,10 @@ Each module may have specific outputs. You can retrieve these outputs by referen
 - 'private_ip_address': The first private (PRIVATE) IPv4 address assigned for the master instance.
 
 ## Examples
-For detailed examples on how to use this module, please refer to the 'examples' directory within this repository.
+For detailed examples on how to use this module, please refer to the [examples](https://github.com/cypik/terraform-gcp-mysql/tree/master/example) directory within this repository.
 
 ## Author
 Your Name Replace '[License Name]' and '[Your Name]' with the appropriate license and your information. Feel free to expand this README with additional details or usage instructions as needed for your specific use case.
 
 ## License
-This project is licensed under the MIT License - see the [LICENSE](https://github.com/opz0/terraform-gcp-mysql/blob/master/LICENSE) file for details.
+This project is licensed under the MIT License - see the [LICENSE](https://github.com/cypik/terraform-gcp-mysql/blob/master/LICENSE) file for details.
