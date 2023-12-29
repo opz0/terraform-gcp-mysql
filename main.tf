@@ -202,7 +202,7 @@ resource "random_password" "additional_passwords" {
 }
 
 resource "google_sql_user" "default" {
-  name       = format("%s-user", module.labels.id)
+  name       = format("%s", module.labels.id)
   host       = var.host
   project    = data.google_client_config.current.project
   instance   = google_sql_database_instance.default.name

@@ -1,5 +1,5 @@
 provider "google" {
-  project = "opz0-397319"
+  project = "local-concord-408802"
   region  = "asia-northeast1"
   zone    = "asia-northeast1-a"
 }
@@ -11,13 +11,13 @@ module "mysql-db" {
   source               = "../"
   name                 = "test"
   environment          = "mysql"
-  random_instance_name = true
   database_version     = "MySQL_8_0"
   zone                 = "asia-northeast1-a"
   region               = "asia-northeast1"
   tier                 = "db-n1-standard-1"
   host                 = "%"
   deletion_protection  = false
+  random_instance_name = true
 
   ip_configuration = {
     ipv4_enabled        = true
