@@ -18,13 +18,13 @@ variable "label_order" {
 
 variable "managedby" {
   type        = string
-  default     = ""
+  default     = "cypik"
   description = "ManagedBy, eg 'cypik'."
 }
 
 variable "repository" {
   type        = string
-  default     = "https://github.com/cypik/terraform-gcp-mysql"
+  default     = "https://github.com/cypik/terraform-google-mysql"
   description = "Terraform current module repo"
 }
 

@@ -11,6 +11,7 @@ module "mysql-db" {
   source               = "../"
   name                 = "test"
   environment          = "mysql"
+  user_password        = "hKMLf65R"
   database_version     = "MySQL_8_0"
   zone                 = "asia-northeast1-a"
   region               = "asia-northeast1"
