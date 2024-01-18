@@ -18,13 +18,13 @@ variable "label_order" {
 
 variable "managedby" {
   type        = string
-  default     = ""
-  description = "ManagedBy, eg 'Opz0'."
+  default     = "cypik"
+  description = "ManagedBy, eg 'cypik'."
 }
 
 variable "repository" {
   type        = string
-  default     = ""
+  default     = "https://github.com/cypik/terraform-google-mysql"
   description = "Terraform current module repo"
 }
 
@@ -196,6 +196,7 @@ variable "ip_configuration" {
     allocated_ip_range  = null
   }
 }
+
 variable "backup_configuration" {
   description = "The database backup configuration."
   type = object({
@@ -211,9 +212,9 @@ variable "backup_configuration" {
     binary_log_enabled             = null
     enabled                        = true
     point_in_time_recovery_enabled = null
-    start_time                     = null
+    start_time                     = "3:45"
     transaction_log_retention_days = 1
-    retained_backups               = 1
+    retained_backups               = 10
     retention_unit                 = null
   }
 }
