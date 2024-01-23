@@ -10,6 +10,8 @@ provider "google" {
 module "mysql-db" {
   source               = "../"
   name                 = "test"
+  user_name            = "mysql"
+  db_name              = "testdb"
   environment          = "mysql"
   user_password        = "hKMLf65R"
   database_version     = "MySQL_8_0"

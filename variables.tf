@@ -321,3 +321,15 @@ variable "host" {
   default     = "%"
   description = "The host the user can connect from. This is only supported for BUILT_IN users in MySQL instances. "
 }
+
+variable "db_name" {
+  type        = string
+  default     = ""
+  description = "The name of the database to be created."
+}
+
+variable "user_name" {
+  description = "The name of the default user"
+  type        = string
+  default     = ""
+}
