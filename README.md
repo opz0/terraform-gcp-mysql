@@ -19,7 +19,7 @@ To use this module, you should have Terraform installed and configured for GCP. 
 # Example: mysql-public
 
 ```hcl
-module "mysql-db" {
+module "mysql-public" {
   source               = "cypik/mysql/google"
   version              = "1.0.2"
   name                 = "test"
@@ -51,7 +51,7 @@ module "mysql-db" {
   ]
 }
 ```
-# Example: mysql-public
+# Example: mysql-private
 
 ```hcl
 module "private-service-access" {
@@ -61,7 +61,7 @@ module "private-service-access" {
   deletion_policy      = "ABANDON"
 }
 
-module "safer-mysql-db" {
+module "mysql-private" {
   source               = "cypik/mysql/google/modules/safer_mysql"
   version              = "1.0.2"
   name                 = "test"
