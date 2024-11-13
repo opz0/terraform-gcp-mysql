@@ -1,27 +1,41 @@
 module "labels" {
   source      = "cypik/labels/google"
-  version     = "1.0.1"
+  version     = "1.0.2"
   name        = var.name
   environment = var.environment
   label_order = var.label_order
   managedby   = var.managedby
   repository  = var.repository
+  extra_tags  = var.extra_tags
 }
 
 data "google_client_config" "current" {
 }
 
 locals {
+  master_instance_name     = var.random_instance_name ? "${var.name}-${random_id.suffix[0].hex}" : var.name
   ip_configuration_enabled = length(keys(var.ip_configuration)) > 0 ? true : false
+
   ip_configurations = {
     enabled  = var.ip_configuration
     disabled = {}
   }
 
-  databases             = { for db in var.additional_databases : db.name => db }
-  users                 = { for u in var.additional_users : u.name => u }
-  retained_backups      = lookup(var.backup_configuration, "retained_backups", null)
-  retention_unit        = lookup(var.backup_configuration, "retention_unit", null)
+  databases = { for db in var.additional_databases : db.name => db }
+  users     = { for u in var.additional_users : u.name => u }
+  iam_users = {
+    for user in var.iam_users : user.id => {
+      email = user.email
+      type  = trimsuffix(user.email, "gserviceaccount.com") == user.email ? (user.type != null ? user.type : "CLOUD_IAM_USER") : "CLOUD_IAM_SERVICE_ACCOUNT"
+    }
+  }
+
+  binary_log_enabled = var.availability_type == "REGIONAL" ? true : lookup(var.backup_configuration, "binary_log_enabled", null)
+  backups_enabled    = var.availability_type == "REGIONAL" ? true : lookup(var.backup_configuration, "enabled", null)
+
+  retained_backups = lookup(var.backup_configuration, "retained_backups", null)
+  retention_unit   = lookup(var.backup_configuration, "retention_unit", null)
+
   connector_enforcement = var.connector_enforcement ? "REQUIRED" : "NOT_REQUIRED"
 }
 
@@ -34,31 +48,36 @@ resource "random_password" "root-password" {
   length  = 8
   special = false
 }
-#tfsec:ignore:google-sql-no-public-access
+
+#tfsec:ignore:google-sql-encrypt-in-transit-data
 resource "google_sql_database_instance" "default" {
-  project             = data.google_client_config.current.project
-  name                = var.random_instance_name ? "${format("%s", module.labels.id)}-${random_id.suffix[0].hex}" : format("%s", module.labels.id)
-  database_version    = var.database_version
-  region              = var.region
-  encryption_key_name = var.encryption_key_name
-  root_password       = coalesce(var.root_password, random_password.root-password.result)
-  deletion_protection = var.deletion_protection
+  project              = data.google_client_config.current.project
+  name                 = local.master_instance_name
+  database_version     = var.database_version
+  region               = var.region
+  master_instance_name = var.master_instance_name
+  instance_type        = var.instance_type
+  encryption_key_name  = var.encryption_key_name
+  deletion_protection  = var.deletion_protection
+  root_password        = var.root_password == "" ? null : var.root_password
 
   settings {
-    tier                        = var.tier
-    edition                     = var.edition
-    activation_policy           = var.activation_policy
-    availability_type           = var.availability_type
-    deletion_protection_enabled = var.deletion_protection_enabled
-    connector_enforcement       = local.connector_enforcement
+    tier                         = var.tier
+    edition                      = var.edition
+    activation_policy            = var.activation_policy
+    availability_type            = var.availability_type
+    deletion_protection_enabled  = var.deletion_protection_enabled
+    connector_enforcement        = local.connector_enforcement
+    enable_google_ml_integration = var.enable_google_ml_integration
 
     dynamic "backup_configuration" {
-      for_each = var.backup_configuration.enabled ? [var.backup_configuration] : []
+      for_each = [var.backup_configuration]
       content {
-        binary_log_enabled             = lookup(backup_configuration.value, "binary_log_enabled", null)
-        enabled                        = lookup(backup_configuration.value, "enabled", null)
+        binary_log_enabled             = local.binary_log_enabled
+        enabled                        = local.backups_enabled && var.master_instance_name == null ? true : false
         start_time                     = lookup(backup_configuration.value, "start_time", null)
-        point_in_time_recovery_enabled = lookup(backup_configuration.value, "point_in_time_recovery_enabled", null)
+        location                       = lookup(backup_configuration.value, "location", null)
+        point_in_time_recovery_enabled = lookup(backup_configuration.value, "point_in_time_recovery_enabled", false)
         transaction_log_retention_days = lookup(backup_configuration.value, "transaction_log_retention_days", null)
 
         dynamic "backup_retention_settings" {
@@ -70,6 +89,23 @@ resource "google_sql_database_instance" "default" {
         }
       }
     }
+    dynamic "insights_config" {
+      for_each = var.insights_config != null ? [var.insights_config] : []
+
+      content {
+        query_insights_enabled  = true
+        query_plans_per_minute  = lookup(insights_config.value, "query_plans_per_minute", 5)
+        query_string_length     = lookup(insights_config.value, "query_string_length", 1024)
+        record_application_tags = lookup(insights_config.value, "record_application_tags", false)
+        record_client_address   = lookup(insights_config.value, "record_client_address", false)
+      }
+    }
+    dynamic "data_cache_config" {
+      for_each = var.edition == "ENTERPRISE_PLUS" && var.data_cache_enabled ? ["cache_enabled"] : []
+      content {
+        data_cache_enabled = var.data_cache_enabled
+      }
+    }
     dynamic "deny_maintenance_period" {
       for_each = var.deny_maintenance_period
       content {
@@ -78,13 +114,24 @@ resource "google_sql_database_instance" "default" {
         time       = lookup(deny_maintenance_period.value, "time", null)
       }
     }
+    dynamic "password_validation_policy" {
+      for_each = var.password_validation_policy_config != null ? [var.password_validation_policy_config] : []
+
+      content {
+        enable_password_policy      = lookup(password_validation_policy.value, "enable_password_policy", null)
+        min_length                  = lookup(password_validation_policy.value, "min_length", null)
+        complexity                  = lookup(password_validation_policy.value, "complexity", null)
+        disallow_username_substring = lookup(password_validation_policy.value, "disallow_username_substring", null)
+      }
+    }
     dynamic "ip_configuration" {
       for_each = [local.ip_configurations[local.ip_configuration_enabled ? "enabled" : "disabled"]]
       content {
-        ipv4_enabled       = lookup(ip_configuration.value, "ipv4_enabled", null)
-        private_network    = lookup(ip_configuration.value, "private_network", null)
-        require_ssl        = lookup(ip_configuration.value, "require_ssl", null)
-        allocated_ip_range = lookup(ip_configuration.value, "allocated_ip_range", null)
+        ipv4_enabled                                  = lookup(ip_configuration.value, "ipv4_enabled", null)
+        private_network                               = lookup(ip_configuration.value, "private_network", null)
+        ssl_mode                                      = lookup(ip_configuration.value, "ssl_mode", null)
+        allocated_ip_range                            = lookup(ip_configuration.value, "allocated_ip_range", null)
+        enable_private_path_for_google_cloud_services = lookup(ip_configuration.value, "enable_private_path_for_google_cloud_services", false)
 
         dynamic "authorized_networks" {
           for_each = lookup(ip_configuration.value, "authorized_networks", [])
@@ -94,15 +141,33 @@ resource "google_sql_database_instance" "default" {
             value           = lookup(authorized_networks.value, "value", null)
           }
         }
+        dynamic "authorized_networks" {
+          for_each = lookup(ip_configuration.value, "authorized_networks", [])
+          content {
+            expiration_time = lookup(authorized_networks.value, "expiration_time", null)
+            name            = lookup(authorized_networks.value, "name", null)
+            value           = lookup(authorized_networks.value, "value", null)
+          }
+        }
+
+        dynamic "psc_config" {
+          for_each = ip_configuration.value.psc_enabled ? ["psc_enabled"] : []
+          content {
+            psc_enabled               = ip_configuration.value.psc_enabled
+            allowed_consumer_projects = ip_configuration.value.psc_allowed_consumer_projects
+          }
+        }
+
       }
     }
 
     disk_autoresize       = var.disk_autoresize
     disk_autoresize_limit = var.disk_autoresize_limit
-    disk_size             = var.disk_size
-    disk_type             = var.disk_type
-    pricing_plan          = var.pricing_plan
-    time_zone             = var.time_zone
+
+    disk_size    = var.disk_size
+    disk_type    = var.disk_type
+    pricing_plan = var.pricing_plan
+    user_labels  = var.user_labels
     dynamic "database_flags" {
       for_each = var.database_flags
       content {
@@ -110,40 +175,30 @@ resource "google_sql_database_instance" "default" {
         value = lookup(database_flags.value, "value", null)
       }
     }
-    dynamic "active_directory_config" {
-      for_each = var.active_directory_config
+
+    dynamic "location_preference" {
+      for_each = var.zone != null ? ["location_preference"] : []
       content {
-        domain = lookup(var.active_directory_config, "domain", null)
+        zone                   = var.zone
+        secondary_zone         = var.secondary_zone
+        follow_gae_application = var.follow_gae_application
       }
     }
 
-    dynamic "sql_server_audit_config" {
-      for_each = length(var.sql_server_audit_config) != 0 ? [var.sql_server_audit_config] : []
+    dynamic "maintenance_window" {
+      for_each = var.master_instance_name != null ? [] : ["true"]
+
       content {
-        bucket             = lookup(var.sql_server_audit_config, "bucket", null)
-        upload_interval    = lookup(var.sql_server_audit_config, "upload_interval", null)
-        retention_interval = lookup(var.sql_server_audit_config, "retention_interval", null)
+        day          = var.maintenance_window_day
+        hour         = var.maintenance_window_hour
+        update_track = var.maintenance_window_update_track
       }
-    }
-
-    user_labels = var.user_labels
-    location_preference {
-      zone                   = var.zone
-      secondary_zone         = var.secondary_zone
-      follow_gae_application = var.follow_gae_application
-    }
-
-    maintenance_window {
-      day          = var.maintenance_window_day
-      hour         = var.maintenance_window_hour
-      update_track = var.maintenance_window_update_track
     }
   }
 
   lifecycle {
     ignore_changes = [
-      settings[0].disk_size,
-      root_password
+      settings[0].disk_size
     ]
   }
 
@@ -152,6 +207,7 @@ resource "google_sql_database_instance" "default" {
     update = var.update_timeout
     delete = var.delete_timeout
   }
+
   depends_on = [null_resource.module_depends_on]
 }
 
@@ -224,4 +280,8 @@ resource "null_resource" "module_depends_on" {
   triggers = {
     value = length(var.module_depends_on)
   }
+}
+
+resource "null_resource" "example" {
+  count = length(local.iam_users)
 }

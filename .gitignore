@@ -6,4 +6,5 @@
 *.iml
 *.sum
 *.terraform.lock.hcl
-/example/.terraform.tfstate.lock.info
+/examples/.terraform.tfstate.lock.info
+/examples/mysql-private/.terraform.tfstate.lock.info

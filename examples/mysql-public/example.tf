@@ -1,5 +1,5 @@
 provider "google" {
-  project = "local-concord-408802"
+  project = "soy-smile-435017-c5"
   region  = "asia-northeast1"
   zone    = "asia-northeast1-a"
 }
@@ -7,14 +7,14 @@ provider "google" {
 #####==============================================================================
 ##### mysql-db module call.
 #####==============================================================================
-module "mysql-db" {
-  source               = "../"
+module "mysql-public" {
+  source               = "./../../"
   name                 = "test"
   user_name            = "mysql"
   db_name              = "testdb"
   environment          = "mysql"
   user_password        = "hKMLf65R"
-  database_version     = "MySQL_8_0"
+  database_version     = "MYSQL_5_6"
   zone                 = "asia-northeast1-a"
   region               = "asia-northeast1"
   tier                 = "db-n1-standard-1"
@@ -25,10 +25,11 @@ module "mysql-db" {
   ip_configuration = {
     ipv4_enabled        = true
     private_network     = null
-    require_ssl         = false
+    ssl_mode            = "ENCRYPTED_ONLY"
     allocated_ip_range  = null
     authorized_networks = var.authorized_networks
   }
+
   database_flags = [
     {
       name  = "log_bin_trust_function_creators"
